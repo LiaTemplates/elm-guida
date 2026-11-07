@@ -1,0 +1,15 @@
+node_modules/
+.parcel-cache/
+.playwright-mcp/
+
+# local Teaching-Agent workspace, not part of the template
+specs/
+.agents/
+.claude/
+.cursor/
+.github/copilot-instructions.md
+.mcp.json
+.windsurfrules
+AGENTS.md
+CLAUDE.md
+journal.md

@@ -1,0 +1,32 @@
+{
+  "name": "lia-elm-guida",
+  "version": "0.0.1",
+  "description": "LiaScript template: compile and run Elm in the browser with the Guida compiler",
+  "app": "dist/index.js",
+  "scripts": {
+    "packages": "node scripts/packages.mjs",
+    "build": "parcel build src/index.js --no-source-maps",
+    "watch": "parcel watch src/index.js"
+  },
+  "targets": {
+    "app": {
+      "context": "browser",
+      "outputFormat": "global",
+      "optimize": true
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LiaTemplates/elm-guida.git"
+  },
+  "license": "BSD-3-Clause",
+  "devDependencies": {
+    "buffer": "^6.0.3",
+    "guida": "1.0.0-beta.2",
+    "indexeddb-fs": "2.1.5",
+    "jszip": "3.10.1",
+    "mock-xmlhttprequest": "8.4.1",
+    "parcel": "2.16.4",
+    "process": "^0.11.10"
+  }
+}
