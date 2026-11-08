@@ -1,6 +1,6 @@
 {
   "name": "lia-elm-guida",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "LiaScript template: compile and run Elm in the browser with the Guida compiler",
   "app": "dist/index.js",
   "scripts": {

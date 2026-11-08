@@ -1,7 +1,7 @@
 <!--
 author:   André Dietrich
 email:    LiaScript@web.de
-version:  0.0.1
+version:  0.0.2
 language: en
 narrator: US English Female
 comment:  Write, compile and run Elm programs directly in LiaScript, with the
@@ -16,51 +16,29 @@ attribute: [Guida](https://github.com/guida-lang/compiler) by Décio Ferreira
 @Elm.debug: @Elm.eval_(@uid,debug)
 @Elm.repl:  @Elm.repl_(@uid)
 
-@Elm.eval_
-<script>
-(function () {
-  const first = `@'input(0)`
-  const more = [`@'input(1)`, `@'input(2)`, `@'input(3)`, `@'input(4)`,
-                `@'input(5)`, `@'input(6)`, `@'input(7)`, `@'input(8)`, `@'input(9)`]
-  const inputs = [first]
-  for (let i = 0; i < more.length; i++) {
-    // a missing listing N shows up as "<first listing>(N)"
-    if (more[i] === first + "(" + (i + 1) + ")") break
-    inputs.push(more[i])
-  }
+@Elm.eval_: <script>
+            if (!window.ElmGuida) {
+              send.lia("The Elm compiler (dist/index.js) is not loaded.", [], false);
+            } else {
+              window.ElmGuida.run({ uid: "@0", send, console, mode: "@1",
+                inputs: window.ElmGuida.listings([`@'input(0)`, `@'input(1)`, `@'input(2)`,
+                  `@'input(3)`, `@'input(4)`, `@'input(5)`, `@'input(6)`, `@'input(7)`,
+                  `@'input(8)`, `@'input(9)`]) });
+            }
+            "LIA: wait"
+            </script>
 
-  if (!window.ElmGuida) {
-    send.lia("The Elm compiler (dist/index.js) is not loaded.", [], false)
-  } else {
-    window.ElmGuida.run({ uid: "@0", inputs, send, console, mode: "@1" })
-  }
-})()
-"LIA: wait"
-</script>
-@end
-
-@Elm.repl_
-<script>
-(function () {
-  const first = `@'input(0)`
-  const more = [`@'input(1)`, `@'input(2)`, `@'input(3)`, `@'input(4)`,
-                `@'input(5)`, `@'input(6)`, `@'input(7)`, `@'input(8)`, `@'input(9)`]
-  const inputs = [first]
-  for (let i = 0; i < more.length; i++) {
-    // a missing listing N shows up as "<first listing>(N)"
-    if (more[i] === first + "(" + (i + 1) + ")") break
-    inputs.push(more[i])
-  }
-
-  if (!window.ElmGuida) {
-    send.lia("The Elm compiler (dist/index.js) is not loaded.", [], false)
-  } else {
-    window.ElmGuida.repl({ uid: "@0", inputs, send, console })
-  }
-})()
-"LIA: terminal"
-</script>
-@end
+@Elm.repl_: <script>
+            if (!window.ElmGuida) {
+              send.lia("The Elm compiler (dist/index.js) is not loaded.", [], false);
+            } else {
+              window.ElmGuida.repl({ uid: "@0", send, console,
+                inputs: window.ElmGuida.listings([`@'input(0)`, `@'input(1)`, `@'input(2)`,
+                  `@'input(3)`, `@'input(4)`, `@'input(5)`, `@'input(6)`, `@'input(7)`,
+                  `@'input(8)`, `@'input(9)`]) });
+            }
+            "LIA: terminal"
+            </script>
 
 -->
 
@@ -92,7 +70,7 @@ your course.
 
    or
 
-   `import: https://raw.githubusercontent.com/LiaTemplates/elm-guida/0.0.1/README.md`
+   `import: https://raw.githubusercontent.com/LiaTemplates/elm-guida/0.0.2/README.md`
 
 2. Copy the definitions into your project
 
@@ -583,6 +561,11 @@ The compiler and its glue code are bundled with [Parcel](https://parceljs.org)
 into `dist/index.js` (see `src/index.js`). Build it with `npm install` and
 `npm run build`.
 
+The macros are single-line macros (the indented lines are joined into one
+line), so they also work in a blockquote or a list: there, a multi-line
+macro would get the `>` or the indentation in front of every line of its
+script.
+
 ```` markdown
 script:   dist/index.js
 
@@ -590,49 +573,27 @@ script:   dist/index.js
 @Elm.debug: @Elm.eval_(@uid,debug)
 @Elm.repl:  @Elm.repl_(@uid)
 
-@Elm.eval_
-<script>
-(function () {
-  const first = `@'input(0)`
-  const more = [`@'input(1)`, `@'input(2)`, `@'input(3)`, `@'input(4)`,
-                `@'input(5)`, `@'input(6)`, `@'input(7)`, `@'input(8)`, `@'input(9)`]
-  const inputs = [first]
-  for (let i = 0; i < more.length; i++) {
-    // a missing listing N shows up as "<first listing>(N)"
-    if (more[i] === first + "(" + (i + 1) + ")") break
-    inputs.push(more[i])
-  }
+@Elm.eval_: <script>
+            if (!window.ElmGuida) {
+              send.lia("The Elm compiler (dist/index.js) is not loaded.", [], false);
+            } else {
+              window.ElmGuida.run({ uid: "@0", send, console, mode: "@1",
+                inputs: window.ElmGuida.listings([`@'input(0)`, `@'input(1)`, `@'input(2)`,
+                  `@'input(3)`, `@'input(4)`, `@'input(5)`, `@'input(6)`, `@'input(7)`,
+                  `@'input(8)`, `@'input(9)`]) });
+            }
+            "LIA: wait"
+            </script>
 
-  if (!window.ElmGuida) {
-    send.lia("The Elm compiler (dist/index.js) is not loaded.", [], false)
-  } else {
-    window.ElmGuida.run({ uid: "@0", inputs, send, console, mode: "@1" })
-  }
-})()
-"LIA: wait"
-</script>
-@end
-
-@Elm.repl_
-<script>
-(function () {
-  const first = `@'input(0)`
-  const more = [`@'input(1)`, `@'input(2)`, `@'input(3)`, `@'input(4)`,
-                `@'input(5)`, `@'input(6)`, `@'input(7)`, `@'input(8)`, `@'input(9)`]
-  const inputs = [first]
-  for (let i = 0; i < more.length; i++) {
-    // a missing listing N shows up as "<first listing>(N)"
-    if (more[i] === first + "(" + (i + 1) + ")") break
-    inputs.push(more[i])
-  }
-
-  if (!window.ElmGuida) {
-    send.lia("The Elm compiler (dist/index.js) is not loaded.", [], false)
-  } else {
-    window.ElmGuida.repl({ uid: "@0", inputs, send, console })
-  }
-})()
-"LIA: terminal"
-</script>
-@end
+@Elm.repl_: <script>
+            if (!window.ElmGuida) {
+              send.lia("The Elm compiler (dist/index.js) is not loaded.", [], false);
+            } else {
+              window.ElmGuida.repl({ uid: "@0", send, console,
+                inputs: window.ElmGuida.listings([`@'input(0)`, `@'input(1)`, `@'input(2)`,
+                  `@'input(3)`, `@'input(4)`, `@'input(5)`, `@'input(6)`, `@'input(7)`,
+                  `@'input(8)`, `@'input(9)`]) });
+            }
+            "LIA: terminal"
+            </script>
 ````

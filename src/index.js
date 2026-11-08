@@ -131,9 +131,20 @@ function defaultElmJson(sources) {
 // ---------------------------------------------------------------------------
 // Listings of a LiaScript code block -> project files
 
+const MODULE_HEADER = /^(?:port\s+|effect\s+)?module\s+([A-Z][\w.]*)/m
+
 function moduleName(src) {
-  const m = src.match(/^(?:port\s+|effect\s+)?module\s+([A-Z][\w.]*)/m)
+  const m = src.match(MODULE_HEADER)
   return m ? m[1] : "Main"
+}
+
+// Like `elm make` and `elm reactor`, a listing without a module line is the
+// module Main. Guida needs the line, so it is added in front; `offset` moves
+// the line numbers of error reports back to the lines of the listing.
+function withHeader(src) {
+  if (MODULE_HEADER.test(src)) return { text: src, offset: 0 }
+  const port = /^port\s+[a-z]/m.test(src) ? "port " : ""
+  return { text: port + "module Main exposing (..)\n" + src, offset: 1 }
 }
 
 function classify(inputs) {
@@ -144,10 +155,47 @@ function classify(inputs) {
     if (trimmed === "") return
     if (trimmed.startsWith("{")) project.elmJson = text
     else if (trimmed.startsWith("<")) project.html = text
-    else project.modules.push({ index, name: moduleName(text), text })
+    else project.modules.push({ index, name: moduleName(text), ...withHeader(text) })
   })
 
   return project
+}
+
+// move the line numbers of a compile error report by the offset of its file:
+// the regions and the numbers in the code snippets ("12|")
+function shiftLines(error, offsets) {
+  if (!error || error.type !== "compile-errors") return error
+  return {
+    ...error,
+    errors: error.errors.map((file) => {
+      const offset = offsets[file.path] || 0
+      if (!offset) return file
+      const line = (n) => Math.max(1, n - offset)
+      const swap = (s) =>
+        s.replace(/(^|\n)(\s*)(\d+)\|/g, (all, nl, sp, n) => nl + sp + String(line(parseInt(n))).padStart(n.length) + "|")
+      const region = (r) =>
+        r && { ...r, start: { ...r.start, line: line(r.start.line) }, end: { ...r.end, line: line(r.end.line) } }
+      return {
+        ...file,
+        problems: file.problems.map((p) => ({
+          ...p,
+          region: region(p.region),
+          message: p.message.map((part) => (typeof part === "string" ? swap(part) : { ...part, string: swap(part.string) })),
+        })),
+      }
+    }),
+  }
+}
+
+// the listings of a code block, from `@'input(0)` … `@'input(9)` of a macro:
+// LiaScript shows a missing listing N as "<first listing>(N)"
+function listings(list) {
+  const result = [list[0]]
+  for (let i = 1; i < list.length; i++) {
+    if (list[i] === list[0] + "(" + i + ")") break
+    result.push(list[i])
+  }
+  return result
 }
 
 function hash(str) {
@@ -187,7 +235,7 @@ function preload(log) {
       if (!url) return
 
       const marker = "root/.guida/preloaded-2-" + hash(url)
-      if (await fs.exists(marker)) return
+      if (await fs.exists(marker)) return true
 
       const response = await fetch(url)
       if (!response.ok) throw new Error(response.status + " " + url)
@@ -215,12 +263,29 @@ function preload(log) {
       }
 
       await fs.writeFile(marker, url)
+      return true
     })().catch((e) => {
       // without the archive Guida downloads the packages from its registry
       console.warn("ElmGuida: could not preload the packages:", e)
+      return false
     })
   }
   return preloaded
+}
+
+// true if every package of the elm.json is one of the preloaded packages
+function onlyPreloaded(elmJson) {
+  try {
+    const json = JSON.parse(elmJson)
+    const groups = [json.dependencies, json["test-dependencies"]]
+    return groups.every((g) =>
+      ["direct", "indirect"].every((k) =>
+        Object.entries((g && g[k]) || {}).every(([name, version]) => VERSIONS[name] === version)
+      )
+    )
+  } catch (e) {
+    return false
+  }
 }
 
 async function compile(inputs, options = {}) {
@@ -234,18 +299,24 @@ async function compile(inputs, options = {}) {
   const root = "root/p" + hash(elmJson)
 
   return exclusive(async () => {
-    await preload(options.log)
+    const preloadedOk = await preload(options.log)
+    // Guida asks the registry for new packages on every compile; not needed
+    // when all packages come from the archive (and it fails without a
+    // connection)
+    config.skipRegistryUpdate = preloadedOk === true && onlyPreloaded(elmJson)
     await mkdirs(root)
     await fs.writeFile(root + "/elm.json", elmJson)
 
     if (await fs.exists(root + "/src")) await fs.removeDirectory(root + "/src")
 
     const paths = {}
+    const offsets = {}
     for (const mod of project.modules) {
       const path = root + "/src/" + mod.name.replace(/\./g, "/") + ".elm"
       await mkdirs(path.split("/").slice(0, -1).join("/"))
       await fs.writeFile(path, mod.text)
       paths[path] = mod.index
+      offsets[path] = mod.offset
     }
 
     cwd = root
@@ -263,7 +334,7 @@ async function compile(inputs, options = {}) {
       } catch (e) {
         error = { type: "error", path: null, title: "ERROR", message: [String(result.error)] }
       }
-      return { error, paths, project }
+      return { error: shiftLines(error, offsets), paths, project }
     }
 
     let warnings = []
@@ -271,8 +342,57 @@ async function compile(inputs, options = {}) {
       warnings = JSON.parse(result.warnings || "[]")
     } catch (e) {}
 
-    return { html: result.output, warnings, paths, project }
+    return { html: patchNavigation(result.output), warnings, paths, project }
   })
+}
+
+// ---------------------------------------------------------------------------
+// Browser.application in the frame: a srcdoc frame has no URL of its own
+// (about:srcdoc, which Elm rejects) and must not write into the history of
+// the course. The kernel of elm/browser gets a virtual location instead,
+// starting at VIRTUAL_URL: pushUrl, replaceUrl, back and forward move inside
+// it, links are resolved against it, internal `load`s change the URL like
+// pushUrl, external ones open in a new tab.
+
+const VIRTUAL_URL = "http://localhost/"
+
+const NAVIGATION = `var _Lia_nav = (function () {
+  var stack = [${JSON.stringify(VIRTUAL_URL)}], pos = 0;
+  function abs(url) { try { return new URL(url, stack[pos]).href; } catch (e) { return String(url); } }
+  function origin(url) { try { return new URL(url).origin; } catch (e) { return null; } }
+  return {
+    href: function () { return stack[pos]; },
+    link: function (node) { var a = node.getAttribute('href'); return a === null ? String(node.href) : abs(a); },
+    push: function (url) { stack = stack.slice(0, pos + 1); stack.push(abs(url)); pos = stack.length - 1; },
+    replace: function (url) { stack[pos] = abs(url); },
+    go: function (n) { pos = Math.max(0, Math.min(stack.length - 1, pos + n)); },
+    load: function (url) {
+      var next = abs(url);
+      if (origin(next) === origin(stack[pos])) {
+        this.push(next);
+        window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+      } else {
+        window.open(next, '_blank', 'noopener');
+      }
+    }
+  };
+})();
+
+`
+
+function patchNavigation(html) {
+  if (!html || !html.includes("function _Browser_getUrl()")) return html
+  const patches = [
+    ["function _Browser_getUrl()", NAVIGATION + "function _Browser_getUrl()"],
+    ["_VirtualDom_doc.location.href", "_Lia_nav.href()"],
+    ["var href = domNode.href;", "var href = _Lia_nav.link(domNode);"],
+    ["history.go(n)", "_Lia_nav.go(n)"],
+    ["history.pushState({}, '', url)", "_Lia_nav.push(url)"],
+    ["history.replaceState({}, '', url)", "_Lia_nav.replace(url)"],
+    ["_Browser_window.location = url", "_Lia_nav.load(url)"],
+  ]
+  for (const [from, to] of patches) html = html.split(from).join(to)
+  return html
 }
 
 // ---------------------------------------------------------------------------
@@ -503,6 +623,7 @@ window.ElmGuida = {
   fit,
   log,
   defaultElmJson,
+  listings,
   // URL of the precompiled packages (default: packages.zip next to the bundle)
   packages: undefined,
   // package registry for everything that is not preloaded

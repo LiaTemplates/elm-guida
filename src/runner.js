@@ -6,6 +6,8 @@
 //   leaving a request open forever (Guida then works offline from its cache)
 // - the XMLHttpRequest mock is removed again when the compiler is done
 // - an error thrown inside the compiler rejects the promise
+// - the registry update (all-packages/since/N) is answered with "no new
+//   packages" when config.skipRegistryUpdate is set
 
 const { newServer } = require("mock-xmlhttprequest");
 const JSZip = require("jszip");
@@ -330,6 +332,11 @@ const runGuida = function (config, args) {
         });
 
         server.setDefaultHandler((request) => {
+            if (config.skipRegistryUpdate && /\/all-packages\/since\/\d+$/.test(request.url)) {
+                request.respond(200, null, "[]");
+                return;
+            }
+
             const headers = request.requestHeaders.getHash();
 
             var xhr = new config.XMLHttpRequest();

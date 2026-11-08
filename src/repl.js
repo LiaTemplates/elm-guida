@@ -172,21 +172,25 @@ function problemsOf(error) {
 const PROBE = /This `lia_repl_id` call produces:\n\n([\s\S]*?)\n\nBut the type annotation on `lia_repl_(\d+)`/
 
 // "    List (String -> String)" -> "String -> String"
+// "    List ( Bool, String )"   -> "( Bool, String )" (tuples and () keep
+// their parentheses)
 function unwrapList(type) {
   let t = type.replace(/^ {4}/gm, "").replace(/^List\s+/, "")
 
   if (t.startsWith("(") && t.endsWith(")")) {
     let depth = 0
     let outer = true
+    let comma = false
     for (let i = 0; i < t.length - 1; i++) {
-      if (t[i] === "(") depth++
-      else if (t[i] === ")") depth--
+      if ("([{".includes(t[i])) depth++
+      else if (")]}".includes(t[i])) depth--
+      else if (t[i] === "," && depth === 1) comma = true
       if (depth === 0) {
         outer = false
         break
       }
     }
-    if (outer) t = t.slice(1, -1)
+    if (outer && !comma && t.slice(1, -1).trim() !== "") t = t.slice(1, -1).trim()
   }
 
   const lines = t.split("\n")
